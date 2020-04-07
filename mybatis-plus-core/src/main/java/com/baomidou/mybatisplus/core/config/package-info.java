@@ -14,6 +14,6 @@
  * the License.
  */
 /**
- * 全局默认配置
+ * 全局默认配置  已读
  */
 package com.baomidou.mybatisplus.core.config;

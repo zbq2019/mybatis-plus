@@ -14,6 +14,6 @@
  * the License.
  */
 /**
- * key 生成器
+ * key 生成器  已读
  */
 package com.baomidou.mybatisplus.core.incrementer;

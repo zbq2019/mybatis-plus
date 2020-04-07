@@ -14,6 +14,6 @@
  * the License.
  */
 /**
- * 异常
+ * 异常  已读
  */
 package com.baomidou.mybatisplus.core.exceptions;

@@ -24,6 +24,7 @@ import java.util.List;
 
 /**
  * 受限于SqlSession#selectList(java.lang.String, java.lang.Object)
+ * 支持分页二级缓冲.
  *
  * @author nieqiuqiu
  * @since 3.3.0

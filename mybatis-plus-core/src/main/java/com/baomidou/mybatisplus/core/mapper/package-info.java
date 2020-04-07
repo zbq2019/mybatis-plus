@@ -14,6 +14,6 @@
  * the License.
  */
 /**
- * 注入 mapper 基类
+ * 注入 mapper 基类(提供了最底层可操作表的方法接口)  已读
  */
 package com.baomidou.mybatisplus.core.mapper;

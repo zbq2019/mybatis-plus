@@ -79,15 +79,15 @@ public class TableInfo implements Constants {
      */
     private boolean keyRelated;
     /**
-     * 表主键ID 字段名
+     * 表主键ID 字段名（指数据库中的字段名，eg: user_id）
      */
     private String keyColumn;
     /**
-     * 表主键ID 属性名
+     * 表主键ID 属性名（指pojo对象的属性名称，eg: userId）
      */
     private String keyProperty;
     /**
-     * 表主键ID 属性类型
+     * 表主键ID 属性类型(pojo 对象属性的类型 eg: String/Long/Boolean...)
      */
     private Class<?> keyType;
     /**
@@ -195,6 +195,7 @@ public class TableInfo implements Constants {
 
     /**
      * 获取主键的 select sql 片段
+     * 主键字段 eg：id
      *
      * @return sql 片段
      */
@@ -215,6 +216,7 @@ public class TableInfo implements Constants {
 
     /**
      * 获取包含主键及字段的 select sql 片段
+     * eg：id, name, sex ...
      *
      * @return sql 片段
      */
@@ -222,23 +224,31 @@ public class TableInfo implements Constants {
         if (allSqlSelect != null) {
             return allSqlSelect;
         }
+        // 查询字段筛选
         allSqlSelect = chooseSelect(TableFieldInfo::isSelect);
         return allSqlSelect;
     }
 
     /**
      * 获取需要进行查询的 select sql 片段
+     * <p>在不为空的前提下，返回优先级如下：</p>
+     * <p>优先级：主键和查询字段 > 查询字段 > 主键</p>
      *
      * @param predicate 过滤条件
      * @return sql 片段
      */
     public String chooseSelect(Predicate<TableFieldInfo> predicate) {
+        // 拿到主键字段 eg：id
         String sqlSelect = getKeySqlSelect();
+        // 根据过滤条件筛选出需要查询的字段，并用逗号分隔
         String fieldsSqlSelect = fieldList.stream().filter(predicate)
             .map(TableFieldInfo::getSqlSelect).collect(joining(COMMA));
+
         if (StringUtils.isNotBlank(sqlSelect) && StringUtils.isNotBlank(fieldsSqlSelect)) {
+            // 拿到的主键和字段全不为空，逗号分隔并返回
             return sqlSelect + COMMA + fieldsSqlSelect;
         } else if (StringUtils.isNotBlank(fieldsSqlSelect)) {
+            // 如查询字段不为空，返回拿到的查询字段
             return fieldsSqlSelect;
         }
         return sqlSelect;
@@ -248,15 +258,19 @@ public class TableInfo implements Constants {
      * 获取 insert 时候主键 sql 脚本片段
      * <p>insert into table (字段) values (值)</p>
      * <p>位于 "值" 部位</p>
+     * <P>这里的 "值" 并非具体的值，而是例如xml中的填充值得变量 eg： #{userId}</P>
      *
      * @return sql 脚本片段
      */
     public String getKeyInsertSqlProperty(final String prefix, final boolean newLine) {
+        // 判断是否有字段前缀
         final String newPrefix = prefix == null ? EMPTY : prefix;
         if (havePK()) {
             if (idType == IdType.AUTO) {
+                // 当主键为自增时直接返回空
                 return EMPTY;
             }
+            // 返回安全入参sql判断 eg： #{id}
             return SqlScriptUtils.safeParam(newPrefix + keyProperty) + COMMA + (newLine ? NEWLINE : EMPTY);
         }
         return EMPTY;
@@ -266,14 +280,17 @@ public class TableInfo implements Constants {
      * 获取 insert 时候主键 sql 脚本片段
      * <p>insert into table (字段) values (值)</p>
      * <p>位于 "字段" 部位</p>
+     * eg: id
      *
      * @return sql 脚本片段
      */
     public String getKeyInsertSqlColumn(final boolean newLine) {
         if (havePK()) {
             if (idType == IdType.AUTO) {
+                // 自增，主键保持为空
                 return EMPTY;
             }
+            // eg: id
             return keyColumn + COMMA + (newLine ? NEWLINE : EMPTY);
         }
         return EMPTY;
@@ -287,11 +304,20 @@ public class TableInfo implements Constants {
      * <li> 自动选部位,根据规则会生成 if 标签 </li>
      *
      * @return sql 脚本片段
+     * eg:
+     * <pre>
+     *  #{id},#{name} or
+     *  #{id},<if test="name != null and name != ''">#{name}</if>
+     * </pre>
      */
     public String getAllInsertSqlPropertyMaybeIf(final String prefix) {
         final String newPrefix = prefix == null ? EMPTY : prefix;
+        // getKeyInsertSqlProperty 获取主键的sql片段，eg: #{id}
         return getKeyInsertSqlProperty(newPrefix, true) + fieldList.stream()
-            .map(i -> i.getInsertSqlPropertyMaybeIf(newPrefix)).filter(Objects::nonNull).collect(joining(NEWLINE));
+            // getInsertSqlPropertyMaybeIf 获取插入“值”的sql片段
+            // eg: #{name} or <if test="name != null and name != ''">#{name}</if>
+            .map(i -> i.getInsertSqlPropertyMaybeIf(newPrefix)).filter(Objects::nonNull)
+            .collect(joining(NEWLINE));
     }
 
     /**
@@ -304,12 +330,15 @@ public class TableInfo implements Constants {
      * @return sql 脚本片段
      */
     public String getAllInsertSqlColumnMaybeIf() {
-        return getKeyInsertSqlColumn(true) + fieldList.stream().map(TableFieldInfo::getInsertSqlColumnMaybeIf)
+        // getKeyInsertSqlColumn 获取主键字段
+        return getKeyInsertSqlColumn(true) + fieldList.stream()
+            // 对字段进行处理，对需要添加<if/>标签的字段增加标签
+            .map(TableFieldInfo::getInsertSqlColumnMaybeIf)
             .filter(Objects::nonNull).collect(joining(NEWLINE));
     }
 
     /**
-     * 获取所有的查询的 sql 片段
+     * 获取所有的查询的 sql where 片段
      *
      * @param ignoreLogicDelFiled 是否过滤掉逻辑删除字段
      * @param withId              是否包含 id 项
@@ -320,17 +349,25 @@ public class TableInfo implements Constants {
         final String newPrefix = prefix == null ? EMPTY : prefix;
         String filedSqlScript = fieldList.stream()
             .filter(i -> {
+                // 过滤逻辑删除字段
                 if (ignoreLogicDelFiled) {
+                    // ! 是否开启逻辑删除 && 当前字段是否启用逻辑删除
+                    // 启用逻辑删除，返回false，过滤掉当前字段
                     return !(isLogicDelete() && i.isLogicDelete());
                 }
                 return true;
             })
+            // 拿到where条件
             .map(i -> i.getSqlWhere(newPrefix)).filter(Objects::nonNull).collect(joining(NEWLINE));
+
         if (!withId || StringUtils.isBlank(keyProperty)) {
+            // 不包含主键 或 主键属性为空
             return filedSqlScript;
         }
         String newKeyProperty = newPrefix + keyProperty;
+        // 拿到主键 eg： id = #{id}
         String keySqlScript = keyColumn + EQUALS + SqlScriptUtils.safeParam(newKeyProperty);
+        // <if> 标签包裹
         return SqlScriptUtils.convertIf(keySqlScript, String.format("%s != null", newKeyProperty), false)
             + NEWLINE + filedSqlScript;
     }

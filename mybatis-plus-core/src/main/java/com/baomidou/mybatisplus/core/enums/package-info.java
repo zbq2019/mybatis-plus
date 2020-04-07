@@ -14,6 +14,6 @@
  * the License.
  */
 /**
- * 枚举相关
+ * 枚举相关  已读
  */
 package com.baomidou.mybatisplus.core.enums;

@@ -48,19 +48,24 @@ public class TableFieldInfo implements Constants {
      */
     private final Field field;
     /**
-     * 字段名
+     * 字段名(数据库字段名)
      */
     private final String column;
     /**
-     * 属性名
+     * 属性名(pojo属性名)
      */
     private final String property;
     /**
      * 属性表达式#{property}, 可以指定jdbcType, typeHandler等
+     *
+     * <p>
+     * 这里有两种情况，当指定了jdbcType等信息时，el = property + ， + jdbcType 等信息；
+     * 当未指定jdbcType等信息时， el = property
+     * </P>
      */
     private final String el;
     /**
-     * 属性类型
+     * 属性类型(pojo)
      */
     private final Class<?> propertyType;
     /**
@@ -305,6 +310,7 @@ public class TableFieldInfo implements Constants {
      * 是否启用了逻辑删除
      */
     public boolean isLogicDelete() {
+        // 逻辑删除值和逻辑未删除值同时不为空
         return StringUtils.isNotBlank(logicDeleteValue) && StringUtils.isNotBlank(logicNotDeleteValue);
     }
 
@@ -315,7 +321,7 @@ public class TableFieldInfo implements Constants {
      *
      * <li> 不生成 if 标签 </li>
      *
-     * @return sql 脚本片段
+     * @return sql 脚本片段 eg： #{id} or #{id, jdbcType = bigint}
      */
     public String getInsertSqlProperty(final String prefix) {
         final String newPrefix = prefix == null ? EMPTY : prefix;
@@ -332,10 +338,15 @@ public class TableFieldInfo implements Constants {
      * @return sql 脚本片段
      */
     public String getInsertSqlPropertyMaybeIf(final String prefix) {
+        // 拿到insert sql 片段，eg: #{id}
         String sqlScript = getInsertSqlProperty(prefix);
+        // 判断是否启用插入填充，即是否生成 <if/>条件插入标签
+        // 这名叫的有点费解
         if (withInsertFill) {
+            // 不需要生成<if/>标签，直接返回
             return sqlScript;
         }
+        // 添加<if/>标签
         return convertIf(sqlScript, property, insertStrategy);
     }
 
@@ -346,7 +357,7 @@ public class TableFieldInfo implements Constants {
      *
      * <li> 不生成 if 标签 </li>
      *
-     * @return sql 脚本片段
+     * @return sql 脚本片段 eg： name，
      */
     public String getInsertSqlColumn() {
         return column + COMMA;
@@ -362,10 +373,13 @@ public class TableFieldInfo implements Constants {
      * @return sql 脚本片段
      */
     public String getInsertSqlColumnMaybeIf() {
+        // eg: name,
         final String sqlScript = getInsertSqlColumn();
         if (withInsertFill) {
+            // 不需要添加<if/>标签，直接返回
             return sqlScript;
         }
+        // 添加<if/>标签
         return convertIf(sqlScript, property, insertStrategy);
     }
 
@@ -407,6 +421,7 @@ public class TableFieldInfo implements Constants {
     }
 
     private String convertIfProperty(String prefix, String property) {
+        // eg: et['name']
         return StringUtils.isNotBlank(prefix) ? prefix.substring(0, prefix.length() - 1) + "['" + property + "']" : property;
     }
 
@@ -421,6 +436,7 @@ public class TableFieldInfo implements Constants {
         // 默认:  AND column=#{prefix + el}
         String sqlScript = " AND " + String.format(condition, column, newPrefix + el);
         // 查询的时候只判非空
+        // <if test="ew.entity['userId'] != null"> AND user_id=#{ew.entity.userId}</if>
         return convertIf(sqlScript, convertIfProperty(newPrefix, property), whereStrategy);
     }
 
