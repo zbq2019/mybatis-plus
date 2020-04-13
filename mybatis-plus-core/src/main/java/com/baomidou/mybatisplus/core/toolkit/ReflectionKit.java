@@ -84,7 +84,7 @@ public final class ReflectionKit {
     public static String setMethodCapitalize(Field field, final String str) {
         return StringUtils.concatCapitalize("set", str);
     }
-    
+
     /**
      * <p>
      * 获取 public get方法的值
@@ -111,7 +111,7 @@ public final class ReflectionKit {
             throw ExceptionUtils.mpe("Error: InvocationTargetException on getMethodValue.  Cause:" + e);
         }
     }
-    
+
     /**
      * 获取字段值
      *
@@ -131,7 +131,7 @@ public final class ReflectionKit {
             throw ExceptionUtils.mpe("Error: Cannot read field in %s.  Cause:", e, cls.getSimpleName());
         }
     }
-    
+
     /**
      * 猜测方法名
      *
@@ -143,7 +143,7 @@ public final class ReflectionKit {
     private static String guessGetterName(Field field, final String str) {
         return StringUtils.guessGetterName(str, field.getType());
     }
-    
+
     /**
      * <p>
      * 获取 public get方法的值
@@ -180,12 +180,12 @@ public final class ReflectionKit {
         Type[] params = ((ParameterizedType) genType).getActualTypeArguments();
         if (index >= params.length || index < 0) {
             logger.warn(String.format("Warn: Index: %s, Size of %s's Parameterized Type: %s .", index,
-                    clazz.getSimpleName(), params.length));
+                clazz.getSimpleName(), params.length));
             return Object.class;
         }
         if (!(params[index] instanceof Class)) {
             logger.warn(String.format("Warn: %s not set the actual class on superclass generic parameter",
-                    clazz.getSimpleName()));
+                clazz.getSimpleName()));
             return Object.class;
         }
         return (Class<?>) params[index];
@@ -264,15 +264,15 @@ public final class ReflectionKit {
     public static Map<String, Field> excludeOverrideSuperField(Field[] fields, List<Field> superFieldList) {
         // 子类属性
         Map<String, Field> fieldMap = Stream.of(fields).collect(toMap(Field::getName, identity(),
-                (u, v) -> {
-                    throw new IllegalStateException(String.format("Duplicate key %s", u));
-                },
-                LinkedHashMap::new));
+            (u, v) -> {
+                throw new IllegalStateException(String.format("Duplicate key %s", u));
+            },
+            LinkedHashMap::new));
         superFieldList.stream().filter(field -> !fieldMap.containsKey(field.getName()))
-                .forEach(f -> fieldMap.put(f.getName(), f));
+            .forEach(f -> fieldMap.put(f.getName(), f));
         return fieldMap;
     }
-    
+
     /**
      * 获取字段get方法
      *
@@ -294,10 +294,12 @@ public final class ReflectionKit {
      * 判断是否为基本类型或基本包装类型
      *
      * @param clazz class
-     * @return 是否基本类型或基本包装类型
+     * @return 是否基本类型或基本包装类型 -->true：基本类型或包装类型
      */
     public static boolean isPrimitiveOrWrapper(Class<?> clazz) {
         Assert.notNull(clazz, "Class must not be null");
+        // clazz.isPrimitive() 基本类型返回true eg: int / boolean ... -> true  ;  Boolean / String -> false
+        // PRIMITIVE_WRAPPER_TYPE_MAP.containsKey(clazz)  eg：Boolean / String ->true
         return (clazz.isPrimitive() || PRIMITIVE_WRAPPER_TYPE_MAP.containsKey(clazz));
     }
 

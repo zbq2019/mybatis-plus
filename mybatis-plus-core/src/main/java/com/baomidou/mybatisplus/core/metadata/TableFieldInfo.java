@@ -28,6 +28,7 @@ import org.apache.ibatis.type.TypeHandler;
 import org.apache.ibatis.type.TypeHandlerRegistry;
 import org.apache.ibatis.type.UnknownTypeHandler;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 
 /**
@@ -169,7 +170,9 @@ public class TableFieldInfo implements Constants {
         this.update = tableField.update();
         JdbcType jdbcType = tableField.jdbcType();
         final Class<? extends TypeHandler> typeHandler = tableField.typeHandler();
+        // 小数点位数
         final String numericScale = tableField.numericScale();
+        // 构建el jdbcType&typeHandler&numericScale
         String el = this.property;
         if (JdbcType.UNDEFINED != jdbcType) {
             this.jdbcType = jdbcType;
@@ -197,6 +200,8 @@ public class TableFieldInfo implements Constants {
                 column = column.toUpperCase();
             }
         }
+
+        // 字段的格式化
         String columnFormat = dbConfig.getColumnFormat();
         if (StringUtils.isNotBlank(columnFormat) && tableField.keepGlobalFormat()) {
             column = String.format(columnFormat, column);
@@ -205,11 +210,14 @@ public class TableFieldInfo implements Constants {
         this.column = column;
         this.sqlSelect = column;
         if (TableInfoHelper.checkRelated(tableInfo.isUnderCamel(), this.property, this.column)) {
+            // 属性和字段不不一致
             String propertyFormat = dbConfig.getPropertyFormat();
             String asProperty = this.property;
             if (StringUtils.isNotBlank(propertyFormat)) {
+                // 对属性进行格式化
                 asProperty = String.format(propertyFormat, this.property);
             }
+            // 设置一个别名 eg： column = name ,property = className, return name ( as className)
             this.sqlSelect += (" AS " + asProperty);
         }
 
@@ -228,8 +236,13 @@ public class TableFieldInfo implements Constants {
 
     /**
      * 优先使用单个字段注解，否则使用全局配置
+     *
+     * @param fromAnnotation 来自注解
+     * @param fromDbConfig   来自全局配置
      */
     private FieldStrategy chooseFieldStrategy(FieldStrategy fromAnnotation, FieldStrategy fromDbConfig) {
+        // 如果注解中策略为默认，则使用全局策略
+        // fromAnnotation != FieldStrategy.DEFAULT，注解中的策略 > 全局策略 ， 即粒度越细优先级越高
         return fromAnnotation == FieldStrategy.DEFAULT ? fromDbConfig : fromAnnotation;
     }
 
@@ -287,17 +300,20 @@ public class TableFieldInfo implements Constants {
         /* 获取注解属性，逻辑处理字段 */
         TableLogic tableLogic = field.getAnnotation(TableLogic.class);
         if (null != tableLogic) {
+            // 当字段注解未声明逻辑未删除值时，使用全局配置
             if (StringUtils.isNotBlank(tableLogic.value())) {
                 this.logicNotDeleteValue = tableLogic.value();
             } else {
                 this.logicNotDeleteValue = dbConfig.getLogicNotDeleteValue();
             }
+            // 当字段注解未声明逻辑删除值时，使用全局配置
             if (StringUtils.isNotBlank(tableLogic.delval())) {
                 this.logicDeleteValue = tableLogic.delval();
             } else {
                 this.logicDeleteValue = dbConfig.getLogicDeleteValue();
             }
         } else {
+            // 未获取到注解，判断全局配置，当逻辑未删除值和逻辑删除值同时不为空时，使用全局配置
             String globalLogicDeleteField = dbConfig.getLogicDeleteField();
             if (StringUtils.isNotBlank(globalLogicDeleteField) && globalLogicDeleteField.equalsIgnoreCase(field.getName())) {
                 this.logicNotDeleteValue = dbConfig.getLogicNotDeleteValue();
@@ -405,18 +421,23 @@ public class TableFieldInfo implements Constants {
         // 默认: column=
         String sqlSet = column + EQUALS;
         if (StringUtils.isNotBlank(update)) {
+            // 指定更新 例: `%s`
             sqlSet += String.format(update, column);
         } else {
+            // 安全入参
             sqlSet += SqlScriptUtils.safeParam(newPrefix + el);
         }
         sqlSet += COMMA;
         if (ignoreIf) {
+            // 忽略if标签
             return sqlSet;
         }
         if (withUpdateFill) {
             // 不进行 if 包裹
             return sqlSet;
         }
+
+        // 添加 if包裹
         return convertIf(sqlSet, convertIfProperty(prefix, property), updateStrategy);
     }
 
@@ -442,32 +463,59 @@ public class TableFieldInfo implements Constants {
 
     /**
      * 获取 ResultMapping
+     * <p>
+     * 如果需要，会添加jdbcType 和 typeHandler
+     * </p>
      *
      * @param configuration MybatisConfiguration
      * @return ResultMapping
      */
     ResultMapping getResultMapping(final MybatisConfiguration configuration) {
+        // 构建一个resultMapping
         ResultMapping.Builder builder = new ResultMapping.Builder(configuration, property,
             StringUtils.getTargetColumn(column), propertyType);
+
+        // 从配置中获取类型处理注册器
         TypeHandlerRegistry registry = configuration.getTypeHandlerRegistry();
+
         if (jdbcType != null && jdbcType != JdbcType.UNDEFINED) {
+            // jdbcType
             builder.jdbcType(jdbcType);
         }
+
         if (typeHandler != null && typeHandler != UnknownTypeHandler.class) {
+            // 从类型处理注册器缓存中获取当前类型的处理器  内部维护一个hashMap，以this.typeHandler为key
             TypeHandler<?> typeHandler = registry.getMappingTypeHandler(this.typeHandler);
             if (typeHandler == null) {
+                // 缓存中没有，构建一个实例
                 typeHandler = registry.getInstance(propertyType, this.typeHandler);
                 // todo 这会有影响 registry.register(typeHandler);
             }
+
+            // 设置typeHandler
             builder.typeHandler(typeHandler);
         }
         return builder.build();
     }
 
+    /**
+     * 乐观锁处理
+     * @param alias
+     * @param prefix
+     * @return
+     */
     public String getVersionOli(final String alias, final String prefix) {
+        // and version = #{MP_OPTLOCK_VERSION_ORIGINAL}
         final String oli = " AND " + column + EQUALS + SqlScriptUtils.safeParam(MP_OPTLOCK_VERSION_ORIGINAL);
+        // 转换属性 eg: et['version']
         final String ognlStr = convertIfProperty(prefix, property);
+
         if (isCharSequence) {
+            // String.format("%s != null and %s != null and %s != ''", alias, ognlStr, ognlStr)
+            // ver !=null and et['version'] != null and et['version'] != ''
+
+            // <if test="ver !=null and et['version'] != null and et['version'] != ''">
+            // and version = #{MP_OPTLOCK_VERSION_ORIGINAL} </if>
             return SqlScriptUtils.convertIf(oli, String.format("%s != null and %s != null and %s != ''", alias, ognlStr, ognlStr), false);
         } else {
             return SqlScriptUtils.convertIf(oli, String.format("%s != null and %s != null", alias, ognlStr), false);

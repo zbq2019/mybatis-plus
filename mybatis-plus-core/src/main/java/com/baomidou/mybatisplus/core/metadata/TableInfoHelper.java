@@ -70,6 +70,7 @@ public class TableInfoHelper {
      */
     public static TableInfo getTableInfo(Class<?> clazz) {
         if (clazz == null
+            // true：基本类型或包装类型
             || ReflectionKit.isPrimitiveOrWrapper(clazz)
             || clazz == String.class) {
             return null;
@@ -107,6 +108,7 @@ public class TableInfoHelper {
      * <p>
      * 实体类反射获取表信息【初始化】
      * </p>
+     * MapperBuilderAssistant用于缓存、sql参数、查询返回的结果集处理
      *
      * @param clazz 反射实体类
      * @return 数据库表反射信息
@@ -124,8 +126,11 @@ public class TableInfoHelper {
         tableInfo = new TableInfo(clazz);
         GlobalConfig globalConfig;
         if (null != builderAssistant) {
+            // 命名空间
             tableInfo.setCurrentNamespace(builderAssistant.getCurrentNamespace());
+            // config
             tableInfo.setConfiguration(builderAssistant.getConfiguration());
+            // config -> globalConfig
             globalConfig = GlobalConfigUtils.getGlobalConfig(builderAssistant.getConfiguration());
         } else {
             // 兼容测试场景
@@ -133,8 +138,10 @@ public class TableInfoHelper {
         }
 
         /* 初始化表名相关 */
+        // initTableName 初始化表，返回excludeProperty （需要排除的属性名）
         final String[] excludeProperty = initTableName(clazz, globalConfig, tableInfo);
 
+        // 将需要排除的表字段转为list
         List<String> excludePropertyList = excludeProperty != null && excludeProperty.length > 0 ? Arrays.asList(excludeProperty) : Collections.emptyList();
 
         /* 初始化字段相关 */
@@ -156,6 +163,7 @@ public class TableInfoHelper {
      * <p>
      * 初始化 表数据库类型,表名,resultMap
      * </p>
+     * 优先级： 注解>全局，即细粒度优先
      *
      * @param clazz        实体类
      * @param globalConfig 全局配置
@@ -168,38 +176,54 @@ public class TableInfoHelper {
         TableName table = clazz.getAnnotation(TableName.class);
 
         String tableName = clazz.getSimpleName();
+        // 表前缀
         String tablePrefix = dbConfig.getTablePrefix();
         String schema = dbConfig.getSchema();
+        // 使用表前缀
         boolean tablePrefixEffect = true;
         String[] excludeProperty = null;
 
         if (table != null) {
+
+            // 初始化表名的两种方式
             if (StringUtils.isNotBlank(table.value())) {
+                // 注解指定表名
                 tableName = table.value();
+                // 全局配置表前缀不为空 && table.keepGlobalPrefix() = false（不使用表前缀）
                 if (StringUtils.isNotBlank(tablePrefix) && !table.keepGlobalPrefix()) {
                     tablePrefixEffect = false;
                 }
             } else {
+                // dbConfig 生成表名
                 tableName = initTableNameWithDbConfig(tableName, dbConfig);
             }
+
             if (StringUtils.isNotBlank(table.schema())) {
                 schema = table.schema();
             }
+
             /* 表结果集映射 */
             if (StringUtils.isNotBlank(table.resultMap())) {
                 tableInfo.setResultMap(table.resultMap());
             }
             tableInfo.setAutoInitResultMap(table.autoResultMap());
+            // 需要排除的属性名
             excludeProperty = table.excludeProperty();
+
         } else {
+            // @TableName 注解不存在,直接根据配置初始化表名
             tableName = initTableNameWithDbConfig(tableName, dbConfig);
         }
 
         String targetTableName = tableName;
+        // 表前缀不为空 && 自动补充前缀=true
         if (StringUtils.isNotBlank(tablePrefix) && tablePrefixEffect) {
+            // 拼接表前缀
             targetTableName = tablePrefix + targetTableName;
         }
+
         if (StringUtils.isNotBlank(schema)) {
+            // schema 不为空，目标表名 = schema.表名称
             targetTableName = schema + StringPool.DOT + targetTableName;
         }
 
@@ -223,6 +247,7 @@ public class TableInfoHelper {
         String tableName = className;
         // 开启表名下划线申明
         if (dbConfig.isTableUnderline()) {
+            // 驼峰转下划线
             tableName = StringUtils.camelToUnderline(tableName);
         }
         // 大写命名判断
@@ -420,12 +445,13 @@ public class TableInfoHelper {
      * 判定 related 的值
      * </p>
      *
-     * @param underCamel 驼峰命名
+     * @param underCamel 驼峰命名 true 是 ； false 否
      * @param property   属性名
      * @param column     字段名
-     * @return related
+     * @return related 属性和字段值一致false
      */
     public static boolean checkRelated(boolean underCamel, String property, String column) {
+        // 是否符合数据库字段命名
         if (StringUtils.isNotColumnName(column)) {
             // 首尾有转义符,手动在注解里设置了转义符,去除掉转义符
             column = column.substring(1, column.length() - 1);

@@ -63,6 +63,7 @@ public class GlobalConfigUtils {
      */
     public static GlobalConfig getGlobalConfig(Configuration configuration) {
         Assert.notNull(configuration, "Error: You need Initialize MybatisConfiguration !");
+        // MybatisConfiguration 继承自 Configuration
         return ((MybatisConfiguration) configuration).getGlobalConfig();
     }
 
