@@ -399,8 +399,11 @@ public class TableInfo implements Constants {
      */
     public String getLogicDeleteSql(boolean startWithAnd, boolean isWhere) {
         if (logicDelete) {
+            // 从符合逻辑删除的字段list中取出第一条，否则抛出异常
+            // todo： 为什么只取第一条呢？一张表中只会存在一个逻辑删除的字段？
             TableFieldInfo field = fieldList.stream().filter(TableFieldInfo::isLogicDelete).findFirst()
                 .orElseThrow(() -> ExceptionUtils.mpe("can't find the logicFiled from table {%s}", tableName));
+
             String logicDeleteSql = formatLogicDeleteSql(field, isWhere);
             if (startWithAnd) {
                 logicDeleteSql = " AND " + logicDeleteSql;
@@ -421,16 +424,21 @@ public class TableInfo implements Constants {
     private String formatLogicDeleteSql(TableFieldInfo field, boolean isWhere) {
         final String value = isWhere ? field.getLogicNotDeleteValue() : field.getLogicDeleteValue();
         if (isWhere) {
+            // 如果逻辑未删除值为 NULL 时，将sql片段修改为 column is null
             if (NULL.equalsIgnoreCase(value)) {
                 return field.getColumn() + " IS NULL";
             } else {
+                // 非 null ，使用 = 连接字段和值
                 return field.getColumn() + EQUALS + String.format(field.isCharSequence() ? "'%s'" : "%s", value);
             }
         }
+
+        // 逻辑未删除
         final String targetStr = field.getColumn() + EQUALS;
         if (NULL.equalsIgnoreCase(value)) {
             return targetStr + NULL;
         } else {
+            // 当前字段是String类型，添加''
             return targetStr + String.format(field.isCharSequence() ? "'%s'" : "%s", value);
         }
     }
@@ -439,15 +447,21 @@ public class TableInfo implements Constants {
      * 自动构建 resultMap 并注入(如果条件符合的话)
      */
     void initResultMapIfNeed() {
+        // 开启自动初始化resultMap 且 id（mapper全限定名.mybatis-plus_实体类型） 不为null
         if (autoInitResultMap && null == resultMap) {
+            // id = mapper全限定名.mybatis-plus_实体类型
             String id = currentNamespace + DOT + MYBATIS_PLUS + UNDERSCORE + entityType.getSimpleName();
             List<ResultMapping> resultMappings = new ArrayList<>();
+
             if (havePK()) {
+                // 有主键，加入id mapping
                 ResultMapping idMapping = new ResultMapping.Builder(configuration, keyProperty, keyColumn, keyType)
                     .flags(Collections.singletonList(ResultFlag.ID)).build();
                 resultMappings.add(idMapping);
             }
+
             if (CollectionUtils.isNotEmpty(fieldList)) {
+                // 加入字段
                 fieldList.forEach(i -> resultMappings.add(i.getResultMapping(configuration)));
             }
             ResultMap resultMap = new ResultMap.Builder(configuration, id, entityType, resultMappings).build();

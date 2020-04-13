@@ -289,16 +289,21 @@ public class TableInfoHelper {
 
             /* 主键ID 初始化 */
             if (existTableId) {
+                // 存在主键
                 TableId tableId = field.getAnnotation(TableId.class);
                 if (tableId != null) {
                     if (isReadPK) {
+                        // isReadPK,默认false，如果为true，说明已经存在一个主键
                         throw ExceptionUtils.mpe("@TableId can't more than one in Class: \"%s\".", clazz.getName());
                     } else {
+                        // 初始化主键，初始化成功返回true
                         isReadPK = initTableIdWithAnnotation(dbConfig, tableInfo, field, tableId, reflector);
                         continue;
                     }
                 }
+
             } else if (!isReadPK) {
+                // 再度按照默认主键为“id”进行初始化，成功true，否则false
                 isReadPK = initTableIdWithoutAnnotation(dbConfig, tableInfo, field, reflector);
                 if (isReadPK) {
                     continue;
@@ -355,12 +360,14 @@ public class TableInfoHelper {
         boolean underCamel = tableInfo.isUnderCamel();
         final String property = field.getName();
         if (field.getAnnotation(TableField.class) != null) {
+            // 既使用了 @TableId，又使用了@TableField，@TableField将不起作用
             logger.warn(String.format("This \"%s\" is the table primary key by @TableId annotation in Class: \"%s\",So @TableField annotation will not work!",
                 property, tableInfo.getEntityType().getName()));
         }
         /* 主键策略（ 注解 > 全局 ） */
         // 设置 Sequence 其他策略无效
         if (IdType.NONE == tableId.type()) {
+            // 未设置，使用全局策略
             tableInfo.setIdType(dbConfig.getIdType());
         } else {
             tableInfo.setIdType(tableId.type());
@@ -369,8 +376,11 @@ public class TableInfoHelper {
         /* 字段 */
         String column = property;
         if (StringUtils.isNotBlank(tableId.value())) {
+            // 当注解value不为空时，使用注解的value
             column = tableId.value();
+
         } else {
+            // Java属性名按配置转换为数据库字段名
             // 开启字段下划线申明
             if (underCamel) {
                 column = StringUtils.camelToUnderline(column);
@@ -380,6 +390,8 @@ public class TableInfoHelper {
                 column = column.toUpperCase();
             }
         }
+
+        // checkRelated(underCamel, property, column) 当属性与数据库字段一致时，返回false，即查询时不需要使用as
         tableInfo.setKeyRelated(checkRelated(underCamel, property, column))
             .setKeyColumn(column)
             .setKeyProperty(property)
@@ -401,14 +413,21 @@ public class TableInfoHelper {
                                                         Field field, Reflector reflector) {
         final String property = field.getName();
         if (DEFAULT_ID_NAME.equalsIgnoreCase(property)) {
+            // 一种默认情况
+            // 判断主键是否为默认值，即id
             if (field.getAnnotation(TableField.class) != null) {
+                //  既使用了 @TableId，又使用了@TableField，@TableField将不起作用
                 logger.warn(String.format("This \"%s\" is the table primary key by default name for `id` in Class: \"%s\",So @TableField will not work!",
                     property, tableInfo.getEntityType().getName()));
             }
+
+            // "id"不存在驼峰情况，所以只需要判断是否大写即可
             String column = property;
             if (dbConfig.isCapitalMode()) {
                 column = column.toUpperCase();
             }
+
+            // checkRelated(underCamel, property, column) 当属性与数据库字段一致时，返回false，即查询时不需要使用as
             tableInfo.setKeyRelated(checkRelated(tableInfo.isUnderCamel(), property, column))
                 .setIdType(dbConfig.getIdType())
                 .setKeyColumn(column)
@@ -416,6 +435,8 @@ public class TableInfoHelper {
                 .setKeyType(reflector.getGetterType(property));
             return true;
         }
+
+        // 属性不是"id" 返回false
         return false;
     }
 
