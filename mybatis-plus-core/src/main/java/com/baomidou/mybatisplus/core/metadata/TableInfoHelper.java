@@ -151,6 +151,7 @@ public class TableInfoHelper {
         TABLE_INFO_CACHE.put(clazz, tableInfo);
 
         /* 缓存 lambda */
+        // 主键和字段做缓冲
         LambdaUtils.installCache(tableInfo);
 
         /* 自动构建 resultMap */

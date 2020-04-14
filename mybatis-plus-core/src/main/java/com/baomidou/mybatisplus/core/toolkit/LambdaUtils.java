@@ -59,12 +59,12 @@ public final class LambdaUtils {
     public static <T> SerializedLambda resolve(SFunction<T, ?> func) {
         Class<?> clazz = func.getClass();
         return Optional.ofNullable(FUNC_CACHE.get(clazz))
-                .map(WeakReference::get)
-                .orElseGet(() -> {
-                    SerializedLambda lambda = SerializedLambda.resolve(func);
-                    FUNC_CACHE.put(clazz, new WeakReference<>(lambda));
-                    return lambda;
-                });
+            .map(WeakReference::get)
+            .orElseGet(() -> {
+                SerializedLambda lambda = SerializedLambda.resolve(func);
+                FUNC_CACHE.put(clazz, new WeakReference<>(lambda));
+                return lambda;
+            });
     }
 
     /**
@@ -97,15 +97,21 @@ public final class LambdaUtils {
      * @return 缓存 map
      */
     private static Map<String, ColumnCache> createColumnCacheMap(TableInfo info) {
+        // todo : 给定初始大小
         Map<String, ColumnCache> map = new HashMap<>();
 
+        // 表主键
         String kp = info.getKeyProperty();
+
         if (StringUtils.isNotBlank(kp)) {
+            // formatKey(kp) 转换为大写
+            // new ColumnCache(info.getKeyColumn(), info.getKeySqlSelect())，主键字段名/查询sql片段
             map.put(formatKey(kp), new ColumnCache(info.getKeyColumn(), info.getKeySqlSelect()));
         }
 
         info.getFieldList().forEach(i ->
-                map.put(formatKey(i.getProperty()), new ColumnCache(i.getColumn(), i.getSqlSelect()))
+            // 字段处理
+            map.put(formatKey(i.getProperty()), new ColumnCache(i.getColumn(), i.getSqlSelect()))
         );
         return map;
     }
