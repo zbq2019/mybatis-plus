@@ -508,17 +508,29 @@ public class TableInfoHelper {
             }).collect(toList());
     }
 
+    /**
+     * 主键生成
+     *
+     * @param baseStatementId  /
+     * @param tableInfo        /
+     * @param builderAssistant /
+     * @return /
+     */
     public static KeyGenerator genKeyGenerator(String baseStatementId, TableInfo tableInfo, MapperBuilderAssistant builderAssistant) {
         IKeyGenerator keyGenerator = GlobalConfigUtils.getKeyGenerator(builderAssistant.getConfiguration());
         if (null == keyGenerator) {
             throw new IllegalArgumentException("not configure IKeyGenerator implementation class.");
         }
         Configuration configuration = builderAssistant.getConfiguration();
+        // builderAssistant.getCurrentNamespace() 当前命名空间
         //TODO 这里不加上builderAssistant.getCurrentNamespace()的会导致com.baomidou.mybatisplus.core.parser.SqlParserHelper.getSqlParserInfo越(chu)界(gui)
         String id = builderAssistant.getCurrentNamespace() + StringPool.DOT + baseStatementId + SelectKeyGenerator.SELECT_KEY_SUFFIX;
+
         ResultMap resultMap = new ResultMap.Builder(builderAssistant.getConfiguration(), id, tableInfo.getKeyType(), new ArrayList<>()).build();
+
         MappedStatement mappedStatement = new MappedStatement.Builder(builderAssistant.getConfiguration(), id,
-            new StaticSqlSource(configuration, keyGenerator.executeSql(tableInfo.getKeySequence().value())), SqlCommandType.SELECT)
+            new StaticSqlSource(configuration, keyGenerator.executeSql(tableInfo.getKeySequence().value()))
+            , SqlCommandType.SELECT)
             .keyProperty(tableInfo.getKeyProperty())
             .resultMaps(Collections.singletonList(resultMap))
             .build();
